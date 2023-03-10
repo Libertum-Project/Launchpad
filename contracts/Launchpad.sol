@@ -12,33 +12,30 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./IPancakeRouter02.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 //Contract
 // ------------------------------------
-contract Launchpad is AccessControl, ReentrancyGuard {
+contract Launchpad is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
 
-    struct PlacedToken {
-        address owner;
-        uint256 price; // in _pricingToken multiplied by 10 ** _decimals
-        uint256 initialVolume;
-        uint256 volume;
-        uint256 collectedAmount; // in _pricingToken
+    struct ListedProject {
+        address owner; //owner of the project listed
+        uint256 price; // in _pricingToken multiplied by 10 ** _decimals 
+        uint256 initialVolumeOfTheToken; //how many tokens are sent by the owner
+        uint256 volume; 
+        uint256 collectedAmount; //set to 0
         bool isActive;
     }
 
     // State Variables
     // ------------------------------------
 
-    bytes32 public constant SIGNER_ROLE = keccak256("MINTER_ROLE");
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-
     IPancakeRouter02 pancakeSwap; //0xD99D1c33F9fC3444f8101754aBC46c52416550D1
 
     mapping(uint256 => bool) public nonces;
-    mapping(IERC20 => PlacedToken) public placedTokens;
+    mapping(IERC20 => ListedProject) public listedTokens;
 
     uint256 public collectedFees;
 
@@ -59,43 +56,31 @@ contract Launchpad is AccessControl, ReentrancyGuard {
         _feePercent = feePercent_;
         _pricingToken = pricingToken_;
         pancakeSwap = pancakeSwap_;
-        _setRoleAdmin(SIGNER_ROLE, ADMIN_ROLE);
-        _setRoleAdmin(ADMIN_ROLE, ADMIN_ROLE);
-
-        _setupRole(ADMIN_ROLE, msg.sender);
-        _setupRole(SIGNER_ROLE, msg.sender);
     }
 
-    function setPricingToken(IERC20 pricingToken_) public onlyRole(ADMIN_ROLE) {
+    //admin
+    function setPricingToken(IERC20 pricingToken_) public { 
         _pricingToken = pricingToken_;
     }
 
-    function placeTokens(
+    function listAProject(
         uint256 nonce,
         uint256 price,
         IERC20 token,
-        uint256 initialVolume,
-        bytes memory signature
+        uint256 _initialVolumeOfTheToken
     ) public {
         address sender = msg.sender;
+        //require(!nonces[nonce], "Launchpad: Invalid nonce");
+        require(!listedTokens[token].isActive, "Launchpad: This token was already placed");
+        require(_initialVolumeOfTheToken > 0, "Launchpad: Initial Volume must be greather than 0 tokens");
 
-        require(!nonces[nonce], "Launchpad: Invalid nonce");
-        require(!placedTokens[token].isActive, "Launchpad: This token was already placed");
-        require(initialVolume > 0, "Launchpad: initial Volume must be >0");
+        token.safeTransferFrom(sender, address(this), _initialVolumeOfTheToken);
 
-        address signer = keccak256(
-            abi.encodePacked(sender, address(token), initialVolume, price, nonce)
-        ).toEthSignedMessageHash().recover(signature);
-
-        require(hasRole(SIGNER_ROLE, signer), "Launchpad: Invalid signature");
-
-        token.safeTransferFrom(sender, address(this), initialVolume);
-
-        placedTokens[token] = PlacedToken({
+        listedTokens[token] = ListedProject({
             owner: sender,
             price: price,
-            initialVolume: initialVolume,
-            volume: initialVolume,
+            initialVolumeOfTheToken: _initialVolumeOfTheToken,
+            volume: _initialVolumeOfTheToken,
             collectedAmount: 0,
             isActive: true
         });
@@ -106,11 +91,11 @@ contract Launchpad is AccessControl, ReentrancyGuard {
     }
 
     function _sendCollectedFunds(address sender, IERC20 token) private {
-        PlacedToken storage placedToken = placedTokens[token];
-        require(sender == placedToken.owner, "Launchpad: You are not the owner of this token");
+        ListedProject storage listedToken = listedTokens[token];
+        require(sender == listedToken.owner, "Launchpad: You are not the owner of this token");
 
-        _pricingToken.safeTransfer(placedToken.owner, placedToken.collectedAmount);
-        placedToken.collectedAmount = 0;
+        _pricingToken.safeTransfer(listedToken.owner, listedToken.collectedAmount);
+        listedToken.collectedAmount = 0;
 
         emit FundsCollected(token);
     }
@@ -121,23 +106,23 @@ contract Launchpad is AccessControl, ReentrancyGuard {
 
     function finishRound(IERC20 token) public nonReentrant {
         address sender = msg.sender;
-        PlacedToken storage placedToken = placedTokens[token];
+        ListedProject storage listedToken = listedTokens[token];
 
-        require(sender == placedToken.owner, "Launchpad: You are not the owner of this token");
+        require(sender == listedToken.owner, "Launchpad: You are not the owner of this token");
 
         _sendCollectedFunds(sender, token);
 
-        token.safeTransfer(sender, placedToken.volume);
-        delete placedTokens[token];
+        token.safeTransfer(sender, listedToken.volume);
+        delete listedTokens[token];
 
         emit RoundFinished(token);
     }
 
     function buyTokens(IERC20 token, IERC20 paymentContract, uint256 volume) public nonReentrant {
         address sender = msg.sender;
-        PlacedToken storage placedToken = placedTokens[token];
+        ListedProject storage listedToken = listedTokens[token];
 
-        require(placedToken.isActive == true, "Launchpad: Round isn't active");
+        require(listedToken.isActive == true, "Launchpad: Round isn't active");
 
         paymentContract.safeTransferFrom(sender, address(this), volume);
 
@@ -155,20 +140,21 @@ contract Launchpad is AccessControl, ReentrancyGuard {
             )[1];
         }
 
-        uint256 tokensAmount = (volume * (10 ** _decimals)) / placedToken.price;
-        require(tokensAmount <= placedToken.volume, "Launchpad: Not enough volume");
+        uint256 tokensAmount = (volume * (10 ** _decimals)) / listedToken.price;
+        require(tokensAmount <= listedToken.volume, "Launchpad: Not enough volume");
 
         token.safeTransfer(sender, tokensAmount);
 
         uint256 fee = (volume * _feePercent) / 100;
-        placedToken.collectedAmount += volume - fee;
-        placedToken.volume -= tokensAmount;
+        listedToken.collectedAmount += volume - fee;
+        listedToken.volume -= tokensAmount;
         collectedFees += fee;
 
         emit TokensBought(token, sender, tokensAmount);
     }
 
-    function withdrawFees() public onlyRole(ADMIN_ROLE) {
+    //admin
+    function withdrawFees() public {
         _pricingToken.safeTransfer(msg.sender, collectedFees);
         collectedFees = 0;
     }
@@ -184,7 +170,8 @@ contract Launchpad is AccessControl, ReentrancyGuard {
         return _decimals;
     }
 
-    function setFeePercent(uint256 feePercent_) public onlyRole(ADMIN_ROLE) {
+    //admin
+    function setFeePercent(uint256 feePercent_) public {
         _feePercent = feePercent_;
     }
 
@@ -197,13 +184,13 @@ contract Launchpad is AccessControl, ReentrancyGuard {
         IERC20 currency,
         uint256 tokensAmount
     ) public view returns (uint256 amount) {
-        PlacedToken storage placedToken = placedTokens[token];
-        amount = (tokensAmount * placedToken.price) / (10 ** _decimals);
+        ListedProject storage listedToken = listedTokens[token];
+        amount = (tokensAmount * listedToken.price) / (10 ** _decimals);
         if (currency != _pricingToken) {
             address[] memory path = new address[](2);
             path[0] = address(currency);
             path[1] = address(_pricingToken);
-            amount = pancakeSwap.getAmountsIn(tokensAmount * placedToken.price, path)[0];
+            amount = pancakeSwap.getAmountsIn(tokensAmount * listedToken.price, path)[0];
         }
     }
 
@@ -212,16 +199,16 @@ contract Launchpad is AccessControl, ReentrancyGuard {
         IERC20 currency,
         uint256 amount
     ) public view returns (uint256 tokensAmount) {
-        PlacedToken storage placedToken = placedTokens[token];
+        ListedProject storage listedToken = listedTokens[token];
         if (currency == _pricingToken) {
-            tokensAmount = (amount * (10 ** _decimals)) / placedToken.price;
+            tokensAmount = (amount * (10 ** _decimals)) / listedToken.price;
         } else {
             address[] memory path = new address[](2);
             path[0] = address(currency);
             path[1] = address(_pricingToken);
             tokensAmount =
                 (pancakeSwap.getAmountsOut(amount, path)[1] * (10 ** _decimals)) /
-                placedToken.price;
+                listedToken.price;
         }
     }
 }
