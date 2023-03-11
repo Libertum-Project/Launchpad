@@ -8,207 +8,169 @@ pragma abicoder v2;
 // Import statements
 // ------------------------------------
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./IPancakeRouter02.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-//Contract
-// ------------------------------------
+// ~~~~~~~~~~~~~~ Contract ~~~~~~~~~~~~~~
+//
 contract Launchpad is Ownable, ReentrancyGuard {
-    using SafeERC20 for IERC20;
-    using ECDSA for bytes32;
 
     struct ListedProject {
-        address owner; //owner of the project listed
-        uint256 price; // in _pricingToken multiplied by 10 ** _decimals 
-        uint256 initialVolumeOfTheToken; //how many tokens are sent by the owner
-        uint256 volume; 
-        uint256 collectedAmount; //set to 0
+        address projectOwner; //Owner of the project listed
+        uint256 price; //LibertumToken price 
+        uint256 supply; //Initial supply of the project Token
+        uint256 collectedAmount; //LibertumToken collected
+        uint256 percentageForLibertum;
+        uint256 percentageForTheProjectOwner;
+        uint256 percentageForTheLP;
+        uint256 timeListed; //listing block.timestamp
         bool isActive;
     }
 
-    // State Variables
-    // ------------------------------------
-
-    IPancakeRouter02 pancakeSwap; //0xD99D1c33F9fC3444f8101754aBC46c52416550D1
-
-    mapping(uint256 => bool) public nonces;
-    mapping(IERC20 => ListedProject) public listedTokens;
+    // ~~~~~~~~~~~~~~ State Variables ~~~~~~~~~~~~~~
+    //
+    mapping(IERC20 => ListedProject) public listedProjects; 
 
     uint256 public collectedFees;
 
-    uint256 internal _feePercent;
     uint256 private _decimals = 18;
-    IERC20 private _pricingToken; // ERC20 Contract Address
+    IERC20 private _mainCurrency; //Libertum ERC20
 
-    // Events
-    // ------------------------------------
-    event TokenPlaced(IERC20 token, uint256 nonce);
-    event RoundFinished(IERC20 token);
-    event TokensBought(IERC20 token, address buyer, uint256 amount);
-    event FundsCollected(IERC20 token);
+    // ~~~~~~~~~~~~~~ Events ~~~~~~~~~~~~~~
+    //
+    event ProjectListed(IERC20 token, uint256 initialVolume, address indexed projectOwner);
+    event RoundFinished(IERC20 token, uint time);
+    event TokensBought(IERC20 token, address indexed buyer, uint256 amount);
+    event FundsCollectedLibertum(IERC20 indexed project, address indexed Libertum, uint256 amount);
+    event FundsCollectedProjectOwner(IERC20 indexed project, address indexed ProjectOwner, uint256 amount);
+    event FundsCollectedLP(IERC20 indexed project, address indexed LP, uint256 amount);
 
-    // Functions
-    // ------------------------------------
-    constructor(IERC20 pricingToken_, uint256 feePercent_, IPancakeRouter02 pancakeSwap_) {
-        _feePercent = feePercent_;
-        _pricingToken = pricingToken_;
-        pancakeSwap = pancakeSwap_;
+
+
+    // ~~~~~~~~~~~~~~ Functions ~~~~~~~~~~~~~~
+    //
+    constructor(IERC20 LibertumToken_) {
+        _mainCurrency = LibertumToken_;
     }
 
-    //admin
-    function setPricingToken(IERC20 pricingToken_) public { 
-        _pricingToken = pricingToken_;
+    /*
+        * setCurrency() OnlyOwner
+        * Change the currency of the launchpad 
+        * ONLY with this _mainCurrency, the users can buy in the launchpad
+    */
+    function setCurrency(IERC20 token_) public onlyOwner { 
+        _mainCurrency = token_;
     }
 
+
+    /*
+        * listAProject() OnlyOwner
+        * 1. Check the project is not active yet (must return false)
+        * 2. Check the initial volume of the projectToken is greather than 0
+        * 3. Create the struct for the project and add it to the mappin listedProjects[IERC20]
+    */
     function listAProject(
-        uint256 nonce,
-        uint256 price,
-        IERC20 token,
-        uint256 _initialVolumeOfTheToken
-    ) public {
-        address sender = msg.sender;
-        //require(!nonces[nonce], "Launchpad: Invalid nonce");
-        require(!listedTokens[token].isActive, "Launchpad: This token was already placed");
-        require(_initialVolumeOfTheToken > 0, "Launchpad: Initial Volume must be greather than 0 tokens");
+        address projectOwner_,
+        uint256 price_,
+        IERC20 projectToken_,
+        uint256 initialVolumeOfTheToken_,
+        uint256 percentageForLibertum_,
+        uint256 percentageForTheProjectOwner_
+    ) public onlyOwner {
+        require(!listedProjects[projectToken_].isActive, "Launchpad: This project is already listed");
+        require(initialVolumeOfTheToken_ > 0, "Launchpad: Initial Volume must be greather than 0 tokens");
+        require((percentageForLibertum_ + percentageForTheProjectOwner_ ) <= 100, "Launchpad: Invalid percentages");
+        
+        // ??????? Should transferFrom from msg.sender, Admin, or projectOwner ???????
+        require(projectToken_.transferFrom(projectOwner_, address(this), initialVolumeOfTheToken_), "Launchpad: Error transfering the project Token");
 
-        token.safeTransferFrom(sender, address(this), _initialVolumeOfTheToken);
-
-        listedTokens[token] = ListedProject({
-            owner: sender,
-            price: price,
-            initialVolumeOfTheToken: _initialVolumeOfTheToken,
-            volume: _initialVolumeOfTheToken,
+        listedProjects[projectToken_] = ListedProject({
+            projectOwner: projectOwner_,
+            price: price_,
+            supply: initialVolumeOfTheToken_,
             collectedAmount: 0,
+            percentageForLibertum: percentageForLibertum_,
+            percentageForTheProjectOwner: percentageForTheProjectOwner_,
+            percentageForTheLP: (100 - (percentageForLibertum_ + percentageForTheProjectOwner_)),
+            timeListed: block.timestamp,
             isActive: true
         });
 
-        nonces[nonce] = true;
-
-        emit TokenPlaced(token, nonce);
+        emit ProjectListed(projectToken_, initialVolumeOfTheToken_, projectOwner_);
     }
 
-    function _sendCollectedFunds(address sender, IERC20 token) private {
-        ListedProject storage listedToken = listedTokens[token];
-        require(sender == listedToken.owner, "Launchpad: You are not the owner of this token");
+    /*
+        * _sendCollectedFunds() internal
+        * 1. get the project from the mapping
+        * 2. get the total amount collected
+        * 3. get tokenAmount for Libertum
+        * 4. get tokenAmount for the projectOwner
+        * 5. get tokenAmount for the LP
+        * 6. g
+    */
+    function _sendCollectedFunds(IERC20 project_) internal {
+        ListedProject memory listedProject = listedProjects[project_];
+        uint256 totalCollected = listedProject.collectedAmount;
+        uint256 amountForLibertum = totalCollected * (listedProject.percentageForLibertum / 100);
+        uint256 amountForTheProjectOwner =  totalCollected * (listedProject.percentageForTheProjectOwner / 100);
+        //uint256 amountForTheLP = totalCollected - amountForLibertum + amountForTheProjectOwner;
+        address projectOwner_ = listedProject.projectOwner;
+        listedProjects[project_].collectedAmount = 0;
+        require(_mainCurrency.transfer(owner(), amountForLibertum), "Launchpad: Failed sending tokens to Admin");
+        require(_mainCurrency.transfer(projectOwner_, amountForTheProjectOwner), "Launchpad: Failed sending tokens to the Project owner");
+        // ??????? SEND TOKENS TO THE LP ???????
 
-        _pricingToken.safeTransfer(listedToken.owner, listedToken.collectedAmount);
-        listedToken.collectedAmount = 0;
-
-        emit FundsCollected(token);
+        emit FundsCollectedLibertum(project_, owner(), amountForLibertum);
+        emit FundsCollectedProjectOwner(project_, projectOwner_, amountForLibertum);
+        //??????? emit FundsCollectedLP(project_, LP, amountForTheLP); event for the LP ???????
     }
 
-    function getCollectedFunds(IERC20 token) public nonReentrant {
-        _sendCollectedFunds(msg.sender, token);
+    function getCollectedFunds(IERC20 project_) public onlyOwner {
+        _sendCollectedFunds(project_);
     }
 
-    function finishRound(IERC20 token) public nonReentrant {
+    function finishRound(IERC20 project_) public onlyOwner {
+        _sendCollectedFunds(project_);
+        delete listedProjects[project_];
+        emit RoundFinished(project_, block.timestamp);
+    }
+
+    /*
+        * buyTokens()
+        * 1. get project from the mapping
+        * 2. require project is active
+        * 3. require the project still have enough token supply
+        * 4. get the LibertumAmount of tokens in proportion to the amountToBuy
+    */
+
+    function buyTokens(IERC20 projectToken_, uint256 amountToBuy) public nonReentrant {
         address sender = msg.sender;
-        ListedProject storage listedToken = listedTokens[token];
+        ListedProject memory listedProject = listedProjects[projectToken_];
+        require(listedProject.isActive, "Launchpad: Round isn't active");
+        require(listedProject.supply >= amountToBuy, "Launchpad: No supply available");
+        uint256 libertumAmount = amountToBuy * listedProject.price;
+               
+        _swapTokens(sender, projectToken_, amountToBuy, libertumAmount);
+           
 
-        require(sender == listedToken.owner, "Launchpad: You are not the owner of this token");
-
-        _sendCollectedFunds(sender, token);
-
-        token.safeTransfer(sender, listedToken.volume);
-        delete listedTokens[token];
-
-        emit RoundFinished(token);
+        emit TokensBought(projectToken_, sender, amountToBuy);
     }
 
-    function buyTokens(IERC20 token, IERC20 paymentContract, uint256 volume) public nonReentrant {
-        address sender = msg.sender;
-        ListedProject storage listedToken = listedTokens[token];
-
-        require(listedToken.isActive == true, "Launchpad: Round isn't active");
-
-        paymentContract.safeTransferFrom(sender, address(this), volume);
-
-        if (paymentContract != _pricingToken) {
-            address[] memory path = new address[](2);
-            path[0] = address(paymentContract);
-            path[1] = address(_pricingToken);
-            paymentContract.approve(address(pancakeSwap), volume);
-            volume = pancakeSwap.swapExactTokensForTokens(
-                volume,
-                0,
-                path,
-                address(this),
-                block.timestamp + 100
-            )[1];
-        }
-
-        uint256 tokensAmount = (volume * (10 ** _decimals)) / listedToken.price;
-        require(tokensAmount <= listedToken.volume, "Launchpad: Not enough volume");
-
-        token.safeTransfer(sender, tokensAmount);
-
-        uint256 fee = (volume * _feePercent) / 100;
-        listedToken.collectedAmount += volume - fee;
-        listedToken.volume -= tokensAmount;
-        collectedFees += fee;
-
-        emit TokensBought(token, sender, tokensAmount);
-    }
-
-    //admin
-    function withdrawFees() public {
-        _pricingToken.safeTransfer(msg.sender, collectedFees);
-        collectedFees = 0;
+    function _swapTokens(address user_, IERC20 projectToken_, uint256 amountProjectToken_,uint256 amountLibertum_) internal returns(bool){
+        require(_mainCurrency.transferFrom(user_, address(this), amountLibertum_), "Launchpad: Transfer main currency failed");
+        require(projectToken_.transfer(user_, amountProjectToken_),"Launchpad: Transfering project token failed");
+        listedProjects[projectToken_].supply -= amountProjectToken_;
+        listedProjects[projectToken_].collectedAmount += amountLibertum_;    
+        return true;
     }
 
     // View/Pure Functions
-    // ------------------------------------
-
-    function feePercent() public view returns (uint256) {
-        return _feePercent;
-    }
-
-    function decimals() public view returns (uint256) {
-        return _decimals;
-    }
-
-    //admin
-    function setFeePercent(uint256 feePercent_) public {
-        _feePercent = feePercent_;
-    }
-
+    //
     function pricingToken() public view returns (IERC20) {
-        return _pricingToken;
+        return _mainCurrency;
     }
 
-    function getAmountByTokens(
-        IERC20 token,
-        IERC20 currency,
-        uint256 tokensAmount
-    ) public view returns (uint256 amount) {
-        ListedProject storage listedToken = listedTokens[token];
-        amount = (tokensAmount * listedToken.price) / (10 ** _decimals);
-        if (currency != _pricingToken) {
-            address[] memory path = new address[](2);
-            path[0] = address(currency);
-            path[1] = address(_pricingToken);
-            amount = pancakeSwap.getAmountsIn(tokensAmount * listedToken.price, path)[0];
-        }
-    }
 
-    function getTokensByAmount(
-        IERC20 token,
-        IERC20 currency,
-        uint256 amount
-    ) public view returns (uint256 tokensAmount) {
-        ListedProject storage listedToken = listedTokens[token];
-        if (currency == _pricingToken) {
-            tokensAmount = (amount * (10 ** _decimals)) / listedToken.price;
-        } else {
-            address[] memory path = new address[](2);
-            path[0] = address(currency);
-            path[1] = address(_pricingToken);
-            tokensAmount =
-                (pancakeSwap.getAmountsOut(amount, path)[1] * (10 ** _decimals)) /
-                listedToken.price;
-        }
-    }
+
 }
