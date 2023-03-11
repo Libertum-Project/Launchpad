@@ -29,9 +29,6 @@ contract Launchpad is Ownable, ReentrancyGuard {
     //
     mapping(IERC20 => ListedProject) public listedProjects; 
 
-    uint256 public collectedFees;
-
-    uint256 private _decimals = 18;
     IERC20 private _mainCurrency; //Libertum ERC20
 
     // ~~~~~~~~~~~~~~ Events ~~~~~~~~~~~~~~
