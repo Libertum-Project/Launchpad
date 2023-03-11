@@ -1,24 +1,21 @@
 // SPDX-License-Identifier: UNLICENSED
 
-// Pragma statements
-// ------------------------------------
 pragma solidity ^0.8.10;
-pragma abicoder v2;
 
-// Import statements
-// ------------------------------------
+// ~~~~~~~~~~~~~~ Import statements ~~~~~~~~~~~~~~
+
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 // ~~~~~~~~~~~~~~ Contract ~~~~~~~~~~~~~~
-//
+
 contract Launchpad is Ownable, ReentrancyGuard {
 
     struct ListedProject {
         address projectOwner; //Owner of the project listed
-        uint256 price; //LibertumToken price 
+        uint256 price; //_mainCurrency price per token of this project
         uint256 supply; //Initial supply of the project Token
         uint256 collectedAmount; //LibertumToken collected
         uint256 percentageForLibertum;
@@ -68,7 +65,10 @@ contract Launchpad is Ownable, ReentrancyGuard {
         * listAProject() OnlyOwner
         * 1. Check the project is not active yet (must return false)
         * 2. Check the initial volume of the projectToken is greather than 0
-        * 3. Create the struct for the project and add it to the mappin listedProjects[IERC20]
+        * 3. Check the porcentaje to the owner + porcentaje to the projectOwner <= 100 %
+        * 4. TransferFrom the tokens of the project from the projectOwner to address(this)
+        * 5. Create the struct for the project and add it to the mappin listedProjects[IERC20]
+        * 6. emit event
     */
     function listAProject(
         address projectOwner_,
@@ -101,35 +101,10 @@ contract Launchpad is Ownable, ReentrancyGuard {
     }
 
     /*
-        * _sendCollectedFunds() internal
-        * 1. get the project from the mapping
-        * 2. get the total amount collected
-        * 3. get tokenAmount for Libertum
-        * 4. get tokenAmount for the projectOwner
-        * 5. get tokenAmount for the LP
-        * 6. g
+        * finishRound() onlyowner
+        * Function to close the round for an specific project
+        * after, call the internal function _sendCollectedFunds to transfer the corresponding amounts
     */
-    function _sendCollectedFunds(IERC20 project_) internal {
-        ListedProject memory listedProject = listedProjects[project_];
-        uint256 totalCollected = listedProject.collectedAmount;
-        uint256 amountForLibertum = totalCollected * (listedProject.percentageForLibertum / 100);
-        uint256 amountForTheProjectOwner =  totalCollected * (listedProject.percentageForTheProjectOwner / 100);
-        //uint256 amountForTheLP = totalCollected - amountForLibertum + amountForTheProjectOwner;
-        address projectOwner_ = listedProject.projectOwner;
-        listedProjects[project_].collectedAmount = 0;
-        require(_mainCurrency.transfer(owner(), amountForLibertum), "Launchpad: Failed sending tokens to Admin");
-        require(_mainCurrency.transfer(projectOwner_, amountForTheProjectOwner), "Launchpad: Failed sending tokens to the Project owner");
-        // ??????? SEND TOKENS TO THE LP ???????
-
-        emit FundsCollectedLibertum(project_, owner(), amountForLibertum);
-        emit FundsCollectedProjectOwner(project_, projectOwner_, amountForLibertum);
-        //??????? emit FundsCollectedLP(project_, LP, amountForTheLP); event for the LP ???????
-    }
-
-    function getCollectedFunds(IERC20 project_) public onlyOwner {
-        _sendCollectedFunds(project_);
-    }
-
     function finishRound(IERC20 project_) public onlyOwner {
         _sendCollectedFunds(project_);
         delete listedProjects[project_];
@@ -137,26 +112,58 @@ contract Launchpad is Ownable, ReentrancyGuard {
     }
 
     /*
-        * buyTokens()
+        * _sendCollectedFunds() internal
+        * 1. get the project from the mapping
+        * 2. get the total amount collected in the _mainCurrency
+        * 3. get tokenAmount for Libertum(Owner) based on the percentage
+        * 4. get tokenAmount for the projectOwner based on the percentage
+        * 5. get tokenAmount for the LP based on the percentage
+        * 6. transfer the corresponding amounts to owner(), projectOwner and LP
+        * 7. emit 3 events corresponding to the 3 transfers 
+    */
+    function _sendCollectedFunds(IERC20 project_) internal {
+        ListedProject memory listedProject = listedProjects[project_];
+        uint256 totalCollected = listedProject.collectedAmount;
+        uint256 amountForLibertum = (totalCollected * listedProject.percentageForLibertum) / 100;
+        uint256 amountForTheProjectOwner =  (totalCollected * listedProject.percentageForTheProjectOwner) / 100;
+        //uint256 amountForTheLP = totalCollected - amountForLibertum + amountForTheProjectOwner;
+        address projectOwner_ = listedProject.projectOwner;
+        require(_mainCurrency.transfer(owner(), amountForLibertum), "Launchpad: Failed sending tokens to Admin");
+        require(_mainCurrency.transfer(projectOwner_, amountForTheProjectOwner), "Launchpad: Failed sending tokens to the Project owner");
+        // ??????? SEND TOKENS TO THE LP ???????
+
+        emit FundsCollectedLibertum(project_, owner(), amountForLibertum);
+        emit FundsCollectedProjectOwner(project_, projectOwner_, amountForTheProjectOwner);
+        //??????? emit FundsCollectedLP(project_, LP, amountForTheLP); event for the LP ???????
+    }
+
+    
+
+    /*
+        * buyTokens() public
         * 1. get project from the mapping
         * 2. require project is active
         * 3. require the project still have enough token supply
-        * 4. get the LibertumAmount of tokens in proportion to the amountToBuy
+        * 4. get the LibertumAmount of tokens in proportion to the amountToBuy from the user
+        * 5. call internal function _swapTokens() to make the swap of the projectToken and _mainCurrency
     */
-
     function buyTokens(IERC20 projectToken_, uint256 amountToBuy) public nonReentrant {
         address sender = msg.sender;
         ListedProject memory listedProject = listedProjects[projectToken_];
         require(listedProject.isActive, "Launchpad: Round isn't active");
         require(listedProject.supply >= amountToBuy, "Launchpad: No supply available");
-        uint256 libertumAmount = amountToBuy * listedProject.price;
-               
-        _swapTokens(sender, projectToken_, amountToBuy, libertumAmount);
-           
-
+        uint256 libertumAmount = amountToBuy * listedProject.price;      
+        require(_swapTokens(sender, projectToken_, amountToBuy, libertumAmount),"Launchdpad: Failed swaping tokens");
         emit TokensBought(projectToken_, sender, amountToBuy);
     }
 
+    /*
+        * _swapTokens() internal
+        * 1. transferFrom the user, the _mainCurrency token to address(this)
+        * 2. transfer to the user the corresponding amount in the projectToken in exchange to the _mainCurrency
+        * 3. dicrease supply of the projectToken
+        * 4. increase collected amount of _mainCurrency for this project
+    */
     function _swapTokens(address user_, IERC20 projectToken_, uint256 amountProjectToken_,uint256 amountLibertum_) internal returns(bool){
         require(_mainCurrency.transferFrom(user_, address(this), amountLibertum_), "Launchpad: Transfer main currency failed");
         require(projectToken_.transfer(user_, amountProjectToken_),"Launchpad: Transfering project token failed");
