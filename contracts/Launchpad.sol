@@ -9,6 +9,7 @@ pragma abicoder v2;
 // ------------------------------------
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/finance/PaymentSplitter.sol";
 
@@ -18,12 +19,12 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
 
     IERC20 public immutable mainCurrency; //ERC20 needed to buy this projectToken
     IERC20 public immutable projectToken; //ERC20 of the project
-    address public immutable projectOwner; //Owner of the listed project
-    uint256 public projectPrice; //price in _mainCurrency token
-    uint256 public projectSupply; //Initial supply of the project Token
-    uint256 public collectedAmount; //_mainCurrency collected
-    bool public isActive;
-    address[] private partners;
+    uint256 public s_projectPrice; //price in _mainCurrency token
+    uint256 public s_projectSupply; //Initial supply of the project Token
+    uint256 public s_collectedAmount; //_mainCurrency collected
+    uint256 public s_minimumAmountToPurchase; //minimum quantity of tokens the users can buy
+    bool public s_isActive;
+    address[] private s_partners;
    
     // ~~~~~~~~~~~~~~ Events ~~~~~~~~~~~~~~
     //
@@ -42,18 +43,18 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
     constructor(
         IERC20 mainCurrency_, 
         IERC20 projectToken_,
-        address projectOwner_, 
-        uint256 projectPrice_, 
+        uint256 projectPrice_,
+        uint256 minAmountToPurchase_, 
         address[] memory payees_, 
         uint[] memory shares_) 
     PaymentSplitter(payees_, shares_) {
         mainCurrency = mainCurrency_;
         projectToken = projectToken_;
-        projectOwner = projectOwner_;
-        projectPrice = projectPrice_;
-        projectSupply = 0; 
-        isActive = true;
-        partners = payees_;
+        s_projectPrice = projectPrice_;
+        s_projectSupply = 0; 
+        s_minimumAmountToPurchase = minAmountToPurchase_;
+        s_isActive = true;
+        s_partners = payees_;
         //Set the total sum of shares to be 100 would be better to assign percentages to the payees
         //Example: 30 shares to "X", 20 shares to "Y" and 50 shares to "P" = 100 shares(100%)
     }
@@ -67,11 +68,11 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
     */
 
     function finishRound() external onlyOwner {
-        require(isActive, "Launchpad: Round is over.");
-        isActive = false;
-        collectedAmount = 0;
+        require(s_isActive, "Launchpad: Round is over.");
+        s_isActive = false;
+        //s_collectedAmount = 0;
         require(_sendFunds(),"Launchpad: Unable to send funds.");
-        emit RoundFinished(block.timestamp, collectedAmount);
+        emit RoundFinished(block.timestamp, s_collectedAmount);
     }
 
     /*
@@ -81,9 +82,9 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
         * 3. return true
     */
     function _sendFunds() internal returns(bool) {
-        uint partnersLength = partners.length;
+        uint partnersLength = s_partners.length;
         for(uint i=0;i<partnersLength;){
-            PaymentSplitter.release(mainCurrency, partners[i]);
+            PaymentSplitter.release(mainCurrency, s_partners[i]);
             unchecked{
                 i++;
             }
@@ -102,7 +103,7 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
     */
     function addSupply(address from_, uint256 amount_) external onlyOwner {
         require(projectToken.transferFrom(from_, address(this), amount_), "Launchpad: Failed adding supply");
-        projectSupply += amount_;
+        s_projectSupply += amount_;
         emit SupplyAdded(from_, amount_);
     }
 
@@ -113,7 +114,7 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
     */
     function reduceSupply(address to_, uint256 amount_) external onlyOwner{
         require(projectToken.transfer(to_, amount_), "Failed transfering the tokens");
-        projectSupply -= amount_;
+        s_projectSupply -= amount_;
         emit SupplyReduced(to_, amount_);
     }
     
@@ -126,21 +127,29 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
         * 4. transferFrom() mainCurrency from msg.sender to this contract
         * 5. transfer() projectTokens to the user
     */
-    function buyTokens(uint256 amountToBuy) external nonReentrant returns (bool) {
-        require(isActive, "Launchapad: Round is over");
-        require(projectSupply >= amountToBuy, "Launchpad: Not enough supply");
-        uint amountMainCurrency = amountToBuy * projectPrice;
-        projectSupply -= amountToBuy;
-        collectedAmount += amountMainCurrency;
+    function buyTokens(uint256 amountToBuy_) external nonReentrant returns (bool) {
+        require(s_isActive, "Launchapad: Round is over");
+        require(s_minimumAmountToPurchase <= amountToBuy_,"Launchpad: Amount is less than the minimum amount you may purchase");
+        require(s_projectSupply >= amountToBuy_, "Launchpad: Not enough supply");
+        uint amountMainCurrency = amountToBuy_ * s_projectPrice;
+        s_projectSupply -= amountToBuy_;
+        s_collectedAmount += amountMainCurrency;
         require(mainCurrency.transferFrom(msg.sender, address(this), amountMainCurrency), "Launchpad: Failed transfering MainCurrency");
-        require(projectToken.transfer(msg.sender, amountToBuy), "Launchpad: Failed transfering projectToken to the user");
+        require(projectToken.transfer(msg.sender, amountToBuy_), "Launchpad: Failed transfering projectToken to the user");
         return true;
     }
 
     function changePrice(uint newPrice_) external onlyOwner{
-        projectPrice = newPrice_;
+        s_projectPrice = newPrice_;
     }
 
+    function pauseOrStartRound() external onlyOwner{
+        s_isActive = !s_isActive;
+    }
+
+    function setMinimumAmountToPurchase(uint256 amount_) external onlyOwner{
+        s_minimumAmountToPurchase = amount_;
+    }
 
 
 }
