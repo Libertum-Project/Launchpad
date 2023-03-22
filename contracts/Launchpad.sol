@@ -25,6 +25,7 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
     uint256 public s_minimumAmountToPurchase; //minimum quantity of tokens the users can buy
     bool public s_isActive;
     address[] private s_partners;
+    mapping (address => uint256) public s_tokensPurchased;
    
     // ~~~~~~~~~~~~~~ Events ~~~~~~~~~~~~~~
     //
@@ -134,10 +135,25 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
         uint amountMainCurrency = amountToBuy_ * s_projectPrice;
         s_projectSupply -= amountToBuy_;
         s_collectedAmount += amountMainCurrency;
+        s_tokensPurchased[msg.sender] += amountToBuy_;
         require(mainCurrency.transferFrom(msg.sender, address(this), amountMainCurrency), "Launchpad: Failed transfering MainCurrency");
-        require(projectToken.transfer(msg.sender, amountToBuy_), "Launchpad: Failed transfering projectToken to the user");
         return true;
     }
+
+    /*
+        claimTokens() 
+        * 1. require the round is over
+        * 2. get the amount of the user
+        * 3. require the user has bough tokens, otherwise revert
+        * 4. transfer the amount to the user
+    */
+
+    function claimTokens() external nonReentrant {
+        require(s_isActive, "Launchpad: Please wait until the round is over");
+        uint256 amountPurchasedByUser = s_tokensPurchased[msg.sender];
+        require(amountPurchasedByUser > 0, "Launchpad: You did not purchase tokens");
+        require(projectToken.transfer(msg.sender, amountPurchasedByUser), "Launchpad: Failed transfering projectToken to the user");
+    } 
 
     function changePrice(uint newPrice_) external onlyOwner{
         s_projectPrice = newPrice_;
