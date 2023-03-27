@@ -3,6 +3,9 @@ pragma solidity >=0.6.2;
 
 import "./IPancakeRouter01.sol";
 
+//BSC Contract testnet
+//https://testnet.bscscan.com/address/0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3#code
+
 interface IPancakeRouter02 is IPancakeRouter01 {
     function removeLiquidityETHSupportingFeeOnTransferTokens(
         address token,
