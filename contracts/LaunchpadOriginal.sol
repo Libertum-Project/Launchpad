@@ -16,7 +16,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 
 //Contract
 // ------------------------------------
-contract Launchpad is AccessControl, ReentrancyGuard {
+contract LaunchpadOriginal is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
 
