@@ -105,7 +105,7 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
         );
         require(pair != address(0),"Launchpad: Failed creating liquidity pool pair");
 
-        _addLiquidityToTheLP();
+        _addLiquidity();
 
         require(_sendFunds(), "Launchpad: Unable to send funds.");
         emit RoundFinished(block.timestamp, s_collectedAmount);
@@ -115,7 +115,7 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
         * _addLiquidity()
         * 1. first get the amounts for the LP (mainCurrency and projectToken)
     */
-    function _addLiquidityToTheLP() internal returns(bool){
+    function _addLiquidity() internal returns(bool){
         uint256 amountMainCurrencyForLP = (s_collectedAmount *  i_percentageMainCurrencyForLiquidityPool) / 100;
         uint256 amountProjectTokenForLP = s_ProjectTokenAmountForLP;
         require(amountProjectTokenForLP > 0, "Launchpad: There are not tokens for the Liquidity Pool"); 
