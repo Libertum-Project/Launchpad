@@ -25,7 +25,8 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
         0xB7926C0430Afb07AA7DEfDE6DA862aE0Bde767bc;
     address constant i_pancakeRouter =
         0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3;
-    uint public immutable i_percentageMainCurrencyForLiquidityPool;
+    uint256 public immutable decimals = 10**18;
+    uint256 public immutable i_percentageMainCurrencyForLiquidityPool;
     IERC20 public immutable i_mainCurrency; //ERC20 needed to buy this projectToken
     IERC20 public immutable i_projectToken; //ERC20 of the project
     uint256 public s_projectPrice; //price in _mainCurrency token
@@ -75,9 +76,8 @@ contract Launchpad is Ownable, ReentrancyGuard, PaymentSplitter {
         i_percentageMainCurrencyForLiquidityPool = percentageForLP_;
         i_mainCurrency = mainCurrency_;
         i_projectToken = projectToken_;
-        s_projectPrice = projectPrice_;
-        s_projectSupply = 0;
-        s_minimumAmountToPurchase = minAmountToPurchase_;
+        s_projectPrice = projectPrice_ * decimals;
+        s_minimumAmountToPurchase = minAmountToPurchase_ * decimals;
         s_isActive = true;
         s_partners = payees_;
         //Set the total sum of shares to be 100 would be better to assign percentages to the payees
