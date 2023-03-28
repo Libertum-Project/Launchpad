@@ -1,26 +1,40 @@
-// We require the Hardhat Runtime Environment explicitly here. This is optional
-// but useful for running the script in a standalone fashion through `node <script>`.
-//
-// You can also run a script with `npx hardhat run <script>`. If you do that, Hardhat
-// will compile your contracts, add the Hardhat Runtime Environment's members to the
-// global scope, and execute the script.
 const hre = require("hardhat");
+const { BigNumber } = require("ethers");
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const ONE_YEAR_IN_SECS = 365 * 24 * 60 * 60;
-  const unlockTime = currentTimestampInSeconds + ONE_YEAR_IN_SECS;
+  let owner = "0xc85eE321199BaB137F0885F045B0f0Ebd151bD11";
+  let payees = [
+    owner,
+    "0xA3286628134baD128faeef82F44e99AA64085C94",
+    "0x5875da5854c2adAdBc1a7a448b5B2A09b26Baff8",
+  ];
+  let shares = [50, 25, 25];
+  let decimals = 10 ** 18;
 
-  const lockedAmount = hre.ethers.utils.parseEther("1");
+  //deploy the tokens
+  const usdt = await (
+    await (await hre.ethers.getContractFactory("USDT")).deploy()
+  ).deployed();
+  const project1token = await (
+    await (await hre.ethers.getContractFactory("Project1")).deploy()
+  ).deployed();
+  console.log(`USDT deployed to: ${usdt.address}`);
+  console.log(`Project1 deployed to: ${project1token.address}`);
 
-  const Lock = await hre.ethers.getContractFactory("Lock");
-  const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
-
-  await lock.deployed();
-
-  console.log(
-    `Lock with 1 ETH and unlock timestamp ${unlockTime} deployed to ${lock.address}`
+  //deploy the Launchpad
+  const Launchpad = await hre.ethers.getContractFactory("Launchpad");
+  const launchpad = await Launchpad.deploy(
+    50, //percentageForLP
+    usdt.address, //IERC20 mainCurrency
+    project1token.address, ///IERC20 projectToken
+    20, //projectToken Price in USDT
+    2, //minimum Amount to purchase of ProjectToken
+    payees,
+    shares
   );
+
+  await launchpad.deployed();
+  console.log(`Launchpad deployed to: ${launchpad.address}`);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
