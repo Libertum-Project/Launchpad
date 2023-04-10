@@ -9,7 +9,7 @@ module.exports = {
   defaultNetwork: "hardhat",
   networks: {
     bsc_testnet: {
-      url: "https://endpoints.omniatech.io/v1/bsc/testnet/public",
+      url: "https://bsc-testnet.public.blastapi.io",
       accounts: [PRIVATE_KEY],
     },
   },

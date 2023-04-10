@@ -5,7 +5,7 @@ async function main() {
   let owner = "0xc85eE321199BaB137F0885F045B0f0Ebd151bD11";
   let payees = [
     owner,
-    "0xA3286628134baD128faeef82F44e99AA64085C94",
+    "0xc85eE321199BaB137F0885F045B0f0Ebd151bD11",
     "0x5875da5854c2adAdBc1a7a448b5B2A09b26Baff8",
   ];
   let shares = [50, 25, 25];
