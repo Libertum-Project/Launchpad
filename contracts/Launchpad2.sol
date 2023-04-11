@@ -42,7 +42,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
     //
 
     event RoundFinished(uint256 time, uint256 collectedAmount);
-    event TokensBought(IERC20 token, address indexed buyer, uint256 amount);
+    event TokensBought(address indexed buyer, IERC20 usdt,uint256 amountUsdt, IERC20 projectToken, uint256 amountProjectToken);
     event SupplyAddedForLaunchpad(address from, uint256 amount);
     event SupplyAddedForLP(address from, uint256 amount);
     event SupplyReduced(address to, uint256 amount);
@@ -183,17 +183,20 @@ contract Launchpad is Ownable, ReentrancyGuard {
             s_projectSupply >= amountToBuy_ * decimals,
             "Launchpad: Not enough supply"
         );
+        address sender = msg.sender;
         uint256 amountUSDT = amountToBuy_ * s_projectPrice;
         s_projectSupply -= amountToBuy_ * decimals;
-        s_tokensPurchased[msg.sender] += amountToBuy_ * decimals;
+        s_tokensPurchased[sender] += amountToBuy_ * decimals;
         require(
             i_USDT.transferFrom(
-                msg.sender,
+                sender,
                 address(this),
                 amountUSDT
             ),
             "Launchpad: Failed transfering USDT"
         );
+        emit TokensBought(sender, i_USDT, amountUSDT, i_projectToken, amountToBuy_* decimals);
+
         return true;
     }
 
