@@ -27,7 +27,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
     IERC20 public immutable IPROJECT_TOKEN; //ERC20 of the project
     uint256 public s_projectPrice; //price in _USDT token
     uint256 public s_projectSupply; //Initial supply of the project Token
-    uint256 public s_minimumAmountToPurchase; //minimum quantity of tokens the users can buy
+    uint256 public s_minimumUnitsToPurchase; //minimum quantity of tokens the users can buy
     bool public s_isActive;
     uint256 public s_ProjectTokenAmountForLP; //amount of projectTokens that will be sent to the LP
     address[] private s_partners;
@@ -57,8 +57,8 @@ contract Launchpad is Ownable, ReentrancyGuard {
         USDT_PERCENTAGE_FOR_LP = percentageForLP_;
         IUSDT = USDT_;
         IPROJECT_TOKEN = projectToken_;
-        s_projectPrice = projectPrice_;
-        s_minimumAmountToPurchase = minAmountToPurchase_ * decimals;
+        s_projectPrice = projectPrice_ * decimals;
+        s_minimumUnitsToPurchase = minAmountToPurchase_ ;
         s_isActive = true;
         s_partners = payees_;
         s_shares = shares_;
@@ -83,7 +83,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
         require(s_isActive, "Launchpad: Round is over.");
         s_isActive = false;
         uint256 collectedAmount = getCollectedUSDT();
-
+/* 
         (address pair) = IPancakeFactory(PANCAKE_FACTORY).createPair(
             address(IUSDT),
             address(IPROJECT_TOKEN)
@@ -91,8 +91,8 @@ contract Launchpad is Ownable, ReentrancyGuard {
         require(pair != address(0),"Launchpad: Failed creating liquidity pool pair");
 
         require(_addLiquidityToLP());
-
-        require(_distributeFunds(), "Launchpad: Failed to distribute funds.");
+ */
+        require(_distributeFunds(), "Launchpad: Unable to send funds.");
         emit RoundFinished(block.timestamp, collectedAmount);
     }
     
@@ -151,11 +151,11 @@ contract Launchpad is Ownable, ReentrancyGuard {
     */
     function reduceSupply(address to_, uint256 amount_) external onlyOwner {
         require(
-            IPROJECT_TOKEN.transfer(to_, amount_),
+            IPROJECT_TOKEN.transfer(to_, amount_ * decimals),
             "Failed transfering the tokens"
         );
-        s_projectSupply -= amount_;
-        emit SupplyReduced(to_, amount_);
+        s_projectSupply -= amount_  * decimals;
+        emit SupplyReduced(to_, amount_ * decimals);
     }
 
     /*
@@ -167,25 +167,26 @@ contract Launchpad is Ownable, ReentrancyGuard {
         * 4. transferFrom() USDT from msg.sender to this contract
         * 5. transfer() projectTokens to the user
     */
-    function buyTokens(uint256 amountToBuy_)
+    function buyTokens(uint256 tokensToBuy)
         external
         nonReentrant
         returns (bool)
     {
-        uint256 minAmountToBuy = s_minimumAmountToPurchase * s_projectPrice;
         require(s_isActive, "Launchapad: Round is over");
+        uint256 price = s_projectPrice;
+        uint256 minUnitToBuy = s_minimumUnitsToPurchase * decimals;
         require(
-            minAmountToBuy <= amountToBuy_ * decimals,
-            "Launchpad: Amount is less than the minimum amount you may purchase"
+            minUnitToBuy <= tokensToBuy * decimals,
+            "Launchpad: Amount is less than the minimum amount you must purchase"
         );
         require(
-            s_projectSupply >= amountToBuy_ * decimals,
+            s_projectSupply >= tokensToBuy * decimals,
             "Launchpad: Not enough supply"
         );
         address sender = msg.sender;
-        uint256 amountUSDT = amountToBuy_ * s_projectPrice;
-        s_projectSupply -= amountToBuy_ * decimals;
-        s_tokensPurchased[sender] += amountToBuy_ * decimals;
+        uint256 amountUSDT = tokensToBuy * price;
+        s_projectSupply -= tokensToBuy * decimals;
+        s_tokensPurchased[sender] += tokensToBuy * decimals;
         require(
             IUSDT.transferFrom(
                 sender,
@@ -194,7 +195,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
             ),
             "Launchpad: Failed transfering USDT"
         );
-        emit TokensBought(sender, IUSDT, amountUSDT, IPROJECT_TOKEN, amountToBuy_* decimals);
+        emit TokensBought(sender, IUSDT, amountUSDT, IPROJECT_TOKEN, tokensToBuy * decimals);
         return true;
     }
 
@@ -215,15 +216,15 @@ contract Launchpad is Ownable, ReentrancyGuard {
     }
 
     function changePrice(uint256 newPrice_) external onlyOwner {
-        s_projectPrice = newPrice_;
+        s_projectPrice = newPrice_ * decimals;
     }
 
     function pauseOrStartRound() external onlyOwner {
         s_isActive = !s_isActive;
     }
 
-    function setMinimumAmountToPurchase(uint256 amount_) external onlyOwner {
-        s_minimumAmountToPurchase = amount_;
+    function setMinimumAmountToPurchase(uint256 units_) external onlyOwner {
+        s_minimumUnitsToPurchase = units_;
     }
 
     //~~~~~~~~~~~~~~ Internal functions ~~~~~~~~~~~~~~
