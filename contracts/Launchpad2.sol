@@ -42,6 +42,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
     event SupplyAddedForLaunchpad(address from, uint256 amount);
     event SupplyAddedForLP(address from, uint256 amount);
     event SupplyReduced(address to, uint256 amount);
+    event PairCreated(uint256 time, address pairAddress);
 
     // ~~~~~~~~~~~~~~ Functions ~~~~~~~~~~~~~~
     //
@@ -83,17 +84,20 @@ contract Launchpad is Ownable, ReentrancyGuard {
         require(s_isActive, "Launchpad: Round is over.");
         s_isActive = false;
         uint256 collectedAmount = getCollectedUSDT();
-/* 
+
+        require(_distributeFunds(), "Launchpad: Unable to send funds.");
+ 
         (address pair) = IPancakeFactory(PANCAKE_FACTORY).createPair(
             address(IUSDT),
             address(IPROJECT_TOKEN)
         );
         require(pair != address(0),"Launchpad: Failed creating liquidity pool pair");
 
-        require(_addLiquidityToLP());
- */
-        require(_distributeFunds(), "Launchpad: Unable to send funds.");
-        emit RoundFinished(block.timestamp, collectedAmount);
+        //require(_addLiquidityToLP());
+        
+       uint256 currentTime = block.timestamp;
+        emit PairCreated(currentTime, pair);
+        emit RoundFinished(currentTime, collectedAmount);
     }
     
     function _addLiquidityToLP() internal returns(bool){
