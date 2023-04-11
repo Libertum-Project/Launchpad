@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
 
-//Problemas: al usar paymentSplitter 
-
-
 // Pragma statements
 // ------------------------------------
 pragma solidity ^0.8.10;
@@ -13,7 +10,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/finance/PaymentSplitter.sol";
 import "./IPancakeFactory.sol";
 import "./IPancakeRouter02.sol";
 import "./IPancakePair.sol";
@@ -94,7 +90,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
         );
         require(pair != address(0),"Launchpad: Failed creating liquidity pool pair");
 
-        _addLiquidityToLP();
+        require(_addLiquidityToLP());
 
         require(_distributeFunds(), "Launchpad: Unable to send funds.");
         emit RoundFinished(block.timestamp, collectedAmount);
@@ -235,7 +231,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
     /*
         _distributeFunds() internal
         * 1. copy in memory the partners length
-        * 2. make a for loop to send the tokens using PaymentSplitter
+        * 2. make a for loop to send the tokens
         * 3. return true
     */
     function _distributeFunds() internal returns (bool) {
