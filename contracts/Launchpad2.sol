@@ -92,7 +92,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
 
         require(_addLiquidityToLP());
 
-        require(_distributeFunds(), "Launchpad: Unable to send funds.");
+        require(_distributeFunds(), "Launchpad: Failed to distribute funds.");
         emit RoundFinished(block.timestamp, collectedAmount);
     }
     
