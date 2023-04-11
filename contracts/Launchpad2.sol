@@ -62,7 +62,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
         s_isActive = true;
         s_partners = payees_;
         s_shares = shares_;
-        uint256 totalShares;
+        uint256 totalShares = 0;
         for(uint i=0; i<shares_.length;++i){
             totalShares+= shares_[i];
         }
