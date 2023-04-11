@@ -173,18 +173,19 @@ contract Launchpad is Ownable, ReentrancyGuard {
         nonReentrant
         returns (bool)
     {
+        uint256 minAmountToBuy = s_minimumAmountToPurchase * s_projectPrice;
         require(s_isActive, "Launchapad: Round is over");
         require(
-            s_minimumAmountToPurchase <= amountToBuy_,
+            minAmountToBuy <= amountToBuy_ * decimals,
             "Launchpad: Amount is less than the minimum amount you may purchase"
         );
         require(
-            s_projectSupply >= amountToBuy_,
+            s_projectSupply >= amountToBuy_ * decimals,
             "Launchpad: Not enough supply"
         );
         uint256 amountUSDT = amountToBuy_ * s_projectPrice;
-        s_projectSupply -= amountToBuy_;
-        s_tokensPurchased[msg.sender] += amountToBuy_;
+        s_projectSupply -= amountToBuy_ * decimals;
+        s_tokensPurchased[msg.sender] += amountToBuy_ * decimals;
         require(
             i_USDT.transferFrom(
                 msg.sender,
@@ -195,6 +196,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
         );
         return true;
     }
+
 
     function claimTokens() external nonReentrant {
         require(!s_isActive, "Launchpad: Please wait until the round is over");
