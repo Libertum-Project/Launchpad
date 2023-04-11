@@ -17,6 +17,8 @@ import "./IPancakePair.sol";
 // ~~~~~~~~~~~~~~ Contract ~~~~~~~~~~~~~~
 //
 contract Launchpad is Ownable, ReentrancyGuard {
+
+    // ~~~~~~~~~~~~~~ Contants/Immutable ~~~~~~~~~~~~~~
     address constant private PANCAKE_FACTORY =
         0x6725F303b657a9451d8BA641348b6761A6CC7a17;
     address constant private PANCAKE_ROUTER =
@@ -25,14 +27,16 @@ contract Launchpad is Ownable, ReentrancyGuard {
     uint256 public immutable USDT_PERCENTAGE_FOR_LP;
     IERC20 public immutable IUSDT; //ERC20 needed to buy this projectToken
     IERC20 public immutable IPROJECT_TOKEN; //ERC20 of the project
-    uint256 public s_projectPrice; //price in _USDT token
-    uint256 public s_projectSupply; //Initial supply of the project Token
-    uint256 public s_minimumUnitsToPurchase; //minimum quantity of tokens the users can buy
-    bool public s_isActive;
-    uint256 public s_ProjectTokenAmountForLP; //amount of projectTokens that will be sent to the LP
+
+    // ~~~~~~~~~~~~~~ State variables ~~~~~~~~~~~~~~
+    uint256 private s_projectPriceInUSDT; 
+    uint256 private s_projectTokenSupplyToSell;
+    uint256 private s_ProjectTokenSupplyForLP; //amount of projectTokens that will be sent to the LP
+    uint256 private s_minimumUnitsToPurchase; //minimum quantity of tokens the users can buy
+    bool private s_isActive;
     address[] private s_partners;
     uint256[] private s_shares;
-    mapping(address => uint256) public s_tokensPurchased;
+    mapping(address => uint256) private s_tokensPurchased;
 
     // ~~~~~~~~~~~~~~ Events ~~~~~~~~~~~~~~
     //
@@ -58,7 +62,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
         USDT_PERCENTAGE_FOR_LP = percentageForLP_;
         IUSDT = USDT_;
         IPROJECT_TOKEN = projectToken_;
-        s_projectPrice = projectPrice_ * decimals;
+        s_projectPriceInUSDT = projectPrice_ * decimals;
         s_minimumUnitsToPurchase = minAmountToPurchase_ ;
         s_isActive = true;
         s_partners = payees_;
@@ -70,40 +74,32 @@ contract Launchpad is Ownable, ReentrancyGuard {
         require(totalShares == 100, "Launchpad, please set 100 shares");
     }
 
-    /*
-        finishRound() onlyowner
-        * Function to close the round for this project
-        * 1. close the round, updating state variables
-        * 2. first create the LP
-        * 3. secondly, add liquidity to the pool
-        * 2. call _distributeFunds() and require to return true
-        * 3. emit event
-    */
-
     function finishRound() external onlyOwner {
         require(s_isActive, "Launchpad: Round is over.");
         s_isActive = false;
-        uint256 collectedAmount = getCollectedUSDT();
+        uint256 collectedAmount = collectedUSDT();
 
         require(_distributeFunds(), "Launchpad: Unable to send funds.");
- 
+// ~~~~~~~~~~~~~~~~~~~~~~~~~ PANCAKESWAP ~~~~~~~~~~~~~~~~~~~~~~~~~
+ /* 
         (address pair) = IPancakeFactory(PANCAKE_FACTORY).createPair(
             address(IUSDT),
             address(IPROJECT_TOKEN)
         );
         require(pair != address(0),"Launchpad: Failed creating liquidity pool pair");
 
-        //require(_addLiquidityToLP());
-        
+        require(_addLiquidityToLP()); //PANCAKESWAP
+*/
        uint256 currentTime = block.timestamp;
-        emit PairCreated(currentTime, pair);
+        //emit PairCreated(currentTime, pair); //PANCAKESWAP
         emit RoundFinished(currentTime, collectedAmount);
     }
-    
-    function _addLiquidityToLP() internal returns(bool){
-        uint256 collectedAmount = getCollectedUSDT();
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~ PANCAKESWAP ~~~~~~~~~~~~~~~~~~~~~~~~~
+/*     function _addLiquidityToLP() internal returns(bool){
+        uint256 collectedAmount = collectedUSDT();
         uint256 amountUSDTForLP = (collectedAmount *  USDT_PERCENTAGE_FOR_LP) / 100;
-        uint256 amountProjectTokenForLP = s_ProjectTokenAmountForLP;
+        uint256 amountProjectTokenForLP = s_ProjectTokenSupplyForLP;
         require(amountProjectTokenForLP > 0, "Launchpad: There are not tokens for the Liquidity Pool"); 
         
         IUSDT.approve(PANCAKE_ROUTER, amountUSDTForLP);
@@ -119,77 +115,76 @@ contract Launchpad is Ownable, ReentrancyGuard {
             owner(),
             block.timestamp + 10 minutes);
         require(liquidity > 0, "Launchpad: Failed adding liquidity to the LP");
-        //require(IPancakePair(pair_).balanceOf(owner()) > 0, "Launchpad: Balance of owner for LP should be greater than 0");
         return true;
     }
+  */   
+ 
+    //~~~~~~~~~~~~~~ OnlyOwner Functions ~~~~~~~~~~~~~~
 
-    /*
-        addSupply() 
-        1. FRONTEND: from_ address must approve tokens first & decimals
-        2. execute transferFrom to this contract to add projectToken
-        3. update projectSupply variable
-        4. emit event
-    */
+    function changePrice(uint256 newPrice_) external onlyOwner {
+        s_projectPriceInUSDT = newPrice_ * decimals;
+    }
+
+    function pauseRound() external onlyOwner {
+        s_isActive = false;
+    }
+
+    function openRound() external onlyOwner{
+        s_isActive = true;
+    }
+
+    function setMinimumAmountToPurchase(uint256 units_) external onlyOwner {
+        s_minimumUnitsToPurchase = units_;
+    }
+
     function addSupplyToSell(address from_, uint256 amount_) external onlyOwner {
+        s_projectTokenSupplyToSell += amount_ * decimals;
         require(
             IPROJECT_TOKEN.transferFrom(from_, address(this), amount_ * decimals),
             "Launchpad: Failed adding supply"
         );
-        s_projectSupply += amount_ * decimals;
         emit SupplyAddedForLaunchpad(from_, amount_ * decimals);
     }
     
     function addSupplyForLP(address from_, uint256 amount_) external onlyOwner {
+        s_ProjectTokenSupplyForLP += amount_ * decimals;
         require(
             IPROJECT_TOKEN.transferFrom(from_, address(this), amount_ * decimals),
             "Launchpad: Failed adding supply"
         );
-        s_ProjectTokenAmountForLP += amount_ * decimals;
         emit SupplyAddedForLaunchpad(from_, amount_ * decimals);
     }
 
-    /*
-        reduceSupply()
-        1. send tokens from this contract to to_
-        2. update projectSupply variable
-    */
     function reduceSupply(address to_, uint256 amount_) external onlyOwner {
+        s_projectTokenSupplyToSell -= amount_  * decimals;
         require(
             IPROJECT_TOKEN.transfer(to_, amount_ * decimals),
             "Failed transfering the tokens"
         );
-        s_projectSupply -= amount_  * decimals;
         emit SupplyReduced(to_, amount_ * decimals);
     }
 
-    /*
-        buyTokens() public
-        * 1. FRONTEND: Approve() tokens from the msg.sender & decimals
-        * 2. require isActive & there is enough supply.
-        * 3. calculate the total amount of USDT to transferFrom msg.sender
-        * 4. update state variables
-        * 4. transferFrom() USDT from msg.sender to this contract
-        * 5. transfer() projectTokens to the user
-    */
+    //~~~~~~~~~~~~~~ User Functions ~~~~~~~~~~~~~~
+
     function buyTokens(uint256 tokensToBuy)
         external
         nonReentrant
         returns (bool)
     {
         require(s_isActive, "Launchapad: Round is over");
-        uint256 price = s_projectPrice;
+        uint256 price = s_projectPriceInUSDT;
         uint256 minUnitToBuy = s_minimumUnitsToPurchase * decimals;
         require(
             minUnitToBuy <= tokensToBuy * decimals,
             "Launchpad: Amount is less than the minimum amount you must purchase"
         );
         require(
-            s_projectSupply >= tokensToBuy * decimals,
+            s_projectTokenSupplyToSell >= tokensToBuy * decimals,
             "Launchpad: Not enough supply"
         );
         address sender = msg.sender;
         uint256 amountUSDT = tokensToBuy * price;
-        s_projectSupply -= tokensToBuy * decimals;
+        s_projectTokenSupplyToSell -= tokensToBuy * decimals;
         s_tokensPurchased[sender] += tokensToBuy * decimals;
         require(
             IUSDT.transferFrom(
@@ -219,28 +214,11 @@ contract Launchpad is Ownable, ReentrancyGuard {
         );
     }
 
-    function changePrice(uint256 newPrice_) external onlyOwner {
-        s_projectPrice = newPrice_ * decimals;
-    }
-
-    function pauseOrStartRound() external onlyOwner {
-        s_isActive = !s_isActive;
-    }
-
-    function setMinimumAmountToPurchase(uint256 units_) external onlyOwner {
-        s_minimumUnitsToPurchase = units_;
-    }
 
     //~~~~~~~~~~~~~~ Internal functions ~~~~~~~~~~~~~~
 
-    /*
-        _distributeFunds() internal
-        * 1. copy in memory the partners length
-        * 2. make a for loop to send the tokens
-        * 3. return true
-    */
     function _distributeFunds() internal returns (bool) {
-        uint256 totalUSDTFunds = getCollectedUSDT();
+        uint256 totalUSDTFunds = collectedUSDT();
         uint256 totalUSDTForLP = (totalUSDTFunds * USDT_PERCENTAGE_FOR_LP) / 100;
         uint256 totalUSDTForPartners = totalUSDTFunds - totalUSDTForLP;
         address[] memory partners = s_partners;
@@ -259,8 +237,40 @@ contract Launchpad is Ownable, ReentrancyGuard {
 
     //~~~~~~~~~~~~~~ View/Pure functions ~~~~~~~~~~~~~~
 
-    function getCollectedUSDT() public view returns(uint256){
+    function collectedUSDT() public view returns(uint256){
         return IUSDT.balanceOf(address(this));
+    }
+
+    function projectPrice() external view returns(uint256){
+        return s_projectPriceInUSDT;
+    }
+
+    function currentTokenSupplyForSell() external view returns(uint256){
+        return s_projectTokenSupplyToSell;
+    }
+
+    function tokenSupplyForLP() external view returns(uint256){
+        return s_ProjectTokenSupplyForLP;
+    }
+
+    function minimumAmountToPurchase() external view returns(uint256){
+        return s_minimumUnitsToPurchase;
+    }
+
+    function partnersByIndex(uint256 index) external view returns(address){
+        return s_partners[index];
+    }
+
+    function sharesByIndex(uint256 index) external view returns(uint256){
+        return s_shares[index];
+    }
+
+    function tokensPurchasedByUser(address user) external view returns(uint256){
+        return s_tokensPurchased[user];
+    }
+
+    function launchpadIsActive() external view returns(bool){
+        return s_isActive;
     }
 
 }
