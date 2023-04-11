@@ -66,8 +66,11 @@ contract Launchpad is Ownable, ReentrancyGuard {
         s_isActive = true;
         s_partners = payees_;
         s_shares = shares_;
-        //Set the total sum of shares to be 100 would be better to assign percentages to the payees
-        //Example: 30 shares to "X", 20 shares to "Y" and 50 shares to "P" = 100 shares(100%)
+        uint256 totalShares;
+        for(uint i=0; i<shares_.length;++i){
+            totalShares+= shares_[i];
+        }
+        require(totalShares == 100, "Launchpad, please set 100 shares");
     }
 
     /*
