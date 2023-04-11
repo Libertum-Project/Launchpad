@@ -26,7 +26,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
     address constant private PANCAKE_ROUTER =
         0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
     uint256 public immutable decimals = 10**18;
-    uint256 public immutable USDT_FOR_LP;
+    uint256 public immutable USDT_PERCENTAGE_FOR_LP;
     IERC20 public immutable IUSDT; //ERC20 needed to buy this projectToken
     IERC20 public immutable IPROJECT_TOKEN; //ERC20 of the project
     uint256 public s_projectPrice; //price in _USDT token
@@ -58,7 +58,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
         address[] memory payees_,
         uint256[] memory shares_
     ) {
-        USDT_FOR_LP = percentageForLP_;
+        USDT_PERCENTAGE_FOR_LP = percentageForLP_;
         IUSDT = USDT_;
         IPROJECT_TOKEN = projectToken_;
         s_projectPrice = projectPrice_;
@@ -99,7 +99,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
     
     function _addLiquidityToLP() internal returns(bool){
         uint256 collectedAmount = getCollectedUSDT();
-        uint256 amountUSDTForLP = (collectedAmount *  USDT_FOR_LP) / 100;
+        uint256 amountUSDTForLP = (collectedAmount *  USDT_PERCENTAGE_FOR_LP) / 100;
         uint256 amountProjectTokenForLP = s_ProjectTokenAmountForLP;
         require(amountProjectTokenForLP > 0, "Launchpad: There are not tokens for the Liquidity Pool"); 
         
@@ -129,11 +129,20 @@ contract Launchpad is Ownable, ReentrancyGuard {
     */
     function addSupplyToSell(address from_, uint256 amount_) external onlyOwner {
         require(
-            IPROJECT_TOKEN.transferFrom(from_, address(this), amount_),
+            IPROJECT_TOKEN.transferFrom(from_, address(this), amount_ * decimals),
             "Launchpad: Failed adding supply"
         );
-        s_projectSupply += amount_;
-        emit SupplyAddedForLaunchpad(from_, amount_);
+        s_projectSupply += amount_ * decimals;
+        emit SupplyAddedForLaunchpad(from_, amount_ * decimals);
+    }
+    
+    function addSupplyForLP(address from_, uint256 amount_) external onlyOwner {
+        require(
+            IPROJECT_TOKEN.transferFrom(from_, address(this), amount_ * decimals),
+            "Launchpad: Failed adding supply"
+        );
+        s_ProjectTokenAmountForLP += amount_ * decimals;
+        emit SupplyAddedForLaunchpad(from_, amount_ * decimals);
     }
 
     /*
@@ -228,7 +237,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
     */
     function _distributeFunds() internal returns (bool) {
         uint256 totalUSDTFunds = getCollectedUSDT();
-        uint256 totalUSDTForLP = (totalUSDTFunds * USDT_FOR_LP) / 100;
+        uint256 totalUSDTForLP = (totalUSDTFunds * USDT_PERCENTAGE_FOR_LP) / 100;
         uint256 totalUSDTForPartners = totalUSDTFunds - totalUSDTForLP;
         address[] memory partners = s_partners;
         uint256[] memory shares = s_shares;
