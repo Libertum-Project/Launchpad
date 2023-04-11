@@ -26,12 +26,11 @@ contract Launchpad is Ownable, ReentrancyGuard {
     address constant i_pancakeRouter =
         0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
     uint256 public immutable decimals = 10**18;
-    uint256 public immutable i_percentageUSDTForLiquidityPool;
+    uint256 public immutable i_USDTPercentageForLP;
     IERC20 public immutable i_USDT; //ERC20 needed to buy this projectToken
     IERC20 public immutable i_projectToken; //ERC20 of the project
     uint256 public s_projectPrice; //price in _USDT token
     uint256 public s_projectSupply; //Initial supply of the project Token
-    uint256 public s_collectedAmount; //_USDT collected
     uint256 public s_minimumAmountToPurchase; //minimum quantity of tokens the users can buy
     bool public s_isActive;
     uint256 public s_ProjectTokenAmountForLP; //amount of projectTokens that will be sent to the LP
@@ -59,7 +58,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
         address[] memory payees_,
         uint256[] memory shares_
     ){
-        i_percentageUSDTForLiquidityPool = percentageForLP_;
+        i_USDTPercentageForLP = percentageForLP_;
         i_USDT = USDT_;
         i_projectToken = projectToken_;
         s_projectPrice = projectPrice_;
@@ -84,7 +83,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
     function finishRound() external onlyOwner {
         require(s_isActive, "Launchpad: Round is over.");
         s_isActive = false;
-        s_collectedAmount = 0;
+        uint256 collectedAmount = getCollectedUSDT();
 
         (address pair) = IPancakeFactory(i_pancakeFactory).createPair(
             address(i_USDT),
@@ -95,11 +94,12 @@ contract Launchpad is Ownable, ReentrancyGuard {
         _addLiquidityToLP();
 
         require(_distributeFunds(), "Launchpad: Unable to send funds.");
-        emit RoundFinished(block.timestamp, s_collectedAmount);
+        emit RoundFinished(block.timestamp, collectedAmount);
     }
     
     function _addLiquidityToLP() internal returns(bool){
-        uint256 amountUSDTForLP = (s_collectedAmount *  i_percentageUSDTForLiquidityPool) / 100;
+        uint256 collectedAmount = getCollectedUSDT();
+        uint256 amountUSDTForLP = (collectedAmount *  i_USDTPercentageForLP) / 100;
         uint256 amountProjectTokenForLP = s_ProjectTokenAmountForLP;
         require(amountProjectTokenForLP > 0, "Launchpad: There are not tokens for the Liquidity Pool"); 
         
@@ -184,7 +184,6 @@ contract Launchpad is Ownable, ReentrancyGuard {
         );
         uint256 amountUSDT = amountToBuy_ * s_projectPrice;
         s_projectSupply -= amountToBuy_;
-        s_collectedAmount += amountUSDT;
         s_tokensPurchased[msg.sender] += amountToBuy_;
         require(
             i_USDT.transferFrom(
@@ -233,17 +232,27 @@ contract Launchpad is Ownable, ReentrancyGuard {
         * 3. return true
     */
     function _distributeFunds() internal returns (bool) {
+        uint256 totalUSDTFunds = getCollectedUSDT();
+        uint256 totalUSDTForLP = (totalUSDTFunds * i_USDTPercentageForLP) / 100;
+        uint256 totalUSDTForPartners = totalUSDTFunds - totalUSDTForLP;
         address[] memory partners = s_partners;
         uint256[] memory shares = s_shares;
         uint256 partnersLength = partners.length;
         
         for (uint256 i = 0; i < partnersLength;) {
-            i_USDT.transfer(partners[i], shares[i]);
+            uint256 amountForPartnerI = (totalUSDTForPartners * shares[i]) / 100;
+            i_USDT.transfer(partners[i], amountForPartnerI);
             unchecked {
                 i++;
             }
         }
         return true;
+    }
+
+    //~~~~~~~~~~~~~~ View/Pure functions ~~~~~~~~~~~~~~
+
+    function getCollectedUSDT() public view returns(uint256){
+        return i_USDT.balanceOf(address(this));
     }
 
 }
