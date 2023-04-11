@@ -249,7 +249,7 @@ contract Launchpad is Ownable, ReentrancyGuard {
         
         for (uint256 i = 0; i < partnersLength;) {
             uint256 amountForPartnerI = (totalUSDTForPartners * shares[i]) / 100;
-            IUSDT.transfer(partners[i], amountForPartnerI);
+            require(IUSDT.transfer(partners[i], amountForPartnerI), "Launchpad: error distributing the funds");
             unchecked {
                 i++;
             }
