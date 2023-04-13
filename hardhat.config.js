@@ -9,7 +9,7 @@ module.exports = {
   defaultNetwork: "hardhat",
   networks: {
     bsc_testnet: {
-      url: "https://bsc-testnet.public.blastapi.io",
+      url: "https://data-seed-prebsc-1-s1.binance.org:8545/",
       accounts: [PRIVATE_KEY],
     },
   },
