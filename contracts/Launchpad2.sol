@@ -68,10 +68,11 @@ contract LaunchpadLibertum is Ownable, ReentrancyGuard {
         s_partners = payees_;
         s_shares = shares_;
         uint256 totalShares = 0;
+        require(shares_.length == payees_.length, "Launchpad: Shares must match payees length");
         for(uint i=0; i<shares_.length;++i){
             totalShares+= shares_[i];
         }
-        require(totalShares == 100, "Launchpad, please set 100 shares");
+        require(totalShares == 100, "Launchpad: please set 100 shares");
     }
 
     function finishRound() external onlyOwner {
