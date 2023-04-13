@@ -10,7 +10,6 @@ async function main() {
     "0xc7203EfeB54846C149F2c79B715a8927F7334e74", //t4
   ];
   const SHARES = [50, 30, 10, 10];
-  let decimals = 10 ** 18;
 
   //deploy the tokens
   const usdt = await (
