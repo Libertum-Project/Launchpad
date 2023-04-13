@@ -9,6 +9,7 @@ async function main() {
     "0x5875da5854c2adAdBc1a7a448b5B2A09b26Baff8", //t3
     "0xc7203EfeB54846C149F2c79B715a8927F7334e74", //t4
   ];
+
   const SHARES = [50, 30, 10, 10];
 
   //deploy the tokens
