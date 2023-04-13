@@ -12,7 +12,6 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./IPancakeFactory.sol";
 import "./IPancakeRouter02.sol";
-import "./IPancakePair.sol";
 
 // ~~~~~~~~~~~~~~ Contract ~~~~~~~~~~~~~~
 //
@@ -82,23 +81,31 @@ contract LaunchpadLibertum is Ownable, ReentrancyGuard {
         uint256 collectedAmount = collectedUSDT();
 
         require(_distributeFunds(), "Launchpad: Unable to send funds.");
-// ~~~~~~~~~~~~~~~~~~~~~~~~~ PANCAKESWAP ~~~~~~~~~~~~~~~~~~~~~~~~~
-  
-        (address pair) = IPancakeFactory(PANCAKE_FACTORY).createPair(
-            address(IUSDT),
-            address(IPROJECT_TOKEN)
-        );
-        require(pair != address(0),"Launchpad: Failed creating liquidity pool pair");
+// ~~~~~~~~~~~~~~~~~~~~ PANCAKESWAP ~~~~~~~~~~~~~~~~~~~~
 
-        require(_addLiquidityToLP()); //PANCAKESWAP
-        
+        (address pair) = _createPair();
+        require(_addLiquidityToLP());
 
-       uint256 currentTime = block.timestamp;
-        emit PairCreated(currentTime, pair); //PANCAKESWAP
+// ~~~~~~~~~~~~~~~~~~~~ PANCAKESWAP ~~~~~~~~~~~~~~~~~~~~
+
+        uint256 currentTime = block.timestamp;
+        emit PairCreated(currentTime, pair);
         emit RoundFinished(currentTime, collectedAmount);
     }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~ PANCAKESWAP ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    function _createPair() internal returns(address){
+        address pair = IPancakeFactory(PANCAKE_FACTORY).createPair(
+            address(IUSDT),
+            address(IPROJECT_TOKEN)
+        );
+        require(pair != address(0),"Launchpad: Failed creating pair");
+        return pair;
+    }
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~ PANCAKESWAP ~~~~~~~~~~~~~~~~~~~~~~~~~
+
      function _addLiquidityToLP() internal returns(bool){
         uint256 collectedAmountAfterDistributing = collectedUSDT();
         uint256 amountUSDTForLP = collectedAmountAfterDistributing;
@@ -122,6 +129,9 @@ contract LaunchpadLibertum is Ownable, ReentrancyGuard {
         require(liquidity > 0, "Launchpad: Failed adding liquidity to the LP");
         return true;
     }
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~ PANCAKESWAP ~~~~~~~~~~~~~~~~~~~~~~~~~
+
      
  
     //~~~~~~~~~~~~~~ OnlyOwner Functions ~~~~~~~~~~~~~~
