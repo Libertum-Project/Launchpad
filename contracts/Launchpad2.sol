@@ -90,6 +90,7 @@ contract LaunchpadLibertum is Ownable, ReentrancyGuard {
         require(pair != address(0),"Launchpad: Failed creating liquidity pool pair");
 
         require(_addLiquidityToLP()); //PANCAKESWAP
+        
 
        uint256 currentTime = block.timestamp;
         emit PairCreated(currentTime, pair); //PANCAKESWAP
@@ -115,6 +116,8 @@ contract LaunchpadLibertum is Ownable, ReentrancyGuard {
             amountProjectTokenForLP,
             owner(),
             block.timestamp + 10 minutes);
+        
+        s_ProjectTokenSupplyForLP = 0;
         require(liquidity > 0, "Launchpad: Failed adding liquidity to the LP");
         return true;
     }
