@@ -1,7 +1,3 @@
-    notes for me:
-    #159 change this one for reduceSupplyToSell()
-    and add reduceSupplyForLP() to reduce the supply for the LP()s
-
 # Launchpad step-by-step
 
     1. deploy USDT (or get the address from the USDT token)
