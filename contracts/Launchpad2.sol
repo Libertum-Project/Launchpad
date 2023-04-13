@@ -98,8 +98,8 @@ contract LaunchpadLibertum is Ownable, ReentrancyGuard {
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~ PANCAKESWAP ~~~~~~~~~~~~~~~~~~~~~~~~~
      function _addLiquidityToLP() internal returns(bool){
-        uint256 collectedAmount = collectedUSDT();
-        uint256 amountUSDTForLP = (collectedAmount *  USDT_PERCENTAGE_FOR_LP) / 100;
+        uint256 collectedAmountAfterDistributing = collectedUSDT();
+        uint256 amountUSDTForLP = collectedAmountAfterDistributing;
         uint256 amountProjectTokenForLP = s_ProjectTokenSupplyForLP;
         require(amountProjectTokenForLP > 0, "Launchpad: There are not tokens for the Liquidity Pool"); 
         
