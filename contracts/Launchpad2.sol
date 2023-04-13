@@ -43,9 +43,10 @@ contract LaunchpadLibertum is Ownable, ReentrancyGuard {
 
     event RoundFinished(uint256 time, uint256 collectedAmount);
     event TokensBought(address indexed buyer, IERC20 usdt,uint256 amountUsdt, IERC20 projectToken, uint256 amountProjectToken);
-    event SupplyAddedForLaunchpad(address from, uint256 amount);
+    event SupplyAddedToSell(address from, uint256 amount);
     event SupplyAddedForLP(address from, uint256 amount);
-    event SupplyReduced(address to, uint256 amount);
+    event SupplyReducedToSell(address to, uint256 amount);
+    event SupplyReducedForLP(address to, uint256 amount);
     event PairCreated(uint256 time, address pairAddress);
 
     // ~~~~~~~~~~~~~~ Functions ~~~~~~~~~~~~~~
@@ -147,7 +148,7 @@ contract LaunchpadLibertum is Ownable, ReentrancyGuard {
             IPROJECT_TOKEN.transferFrom(from_, address(this), amount_ * decimals),
             "Launchpad: Failed adding supply"
         );
-        emit SupplyAddedForLaunchpad(from_, amount_ * decimals);
+        emit SupplyAddedToSell(from_, amount_ * decimals);
     }
     
     function addSupplyForLP(address from_, uint256 amount_) external onlyOwner {
@@ -156,16 +157,25 @@ contract LaunchpadLibertum is Ownable, ReentrancyGuard {
             IPROJECT_TOKEN.transferFrom(from_, address(this), amount_ * decimals),
             "Launchpad: Failed adding supply"
         );
-        emit SupplyAddedForLaunchpad(from_, amount_ * decimals);
+        emit SupplyAddedForLP(from_, amount_ * decimals);
     }
 
-    function reduceSupply(address to_, uint256 amount_) external onlyOwner {
+    function reduceSupplyToSell(address to_, uint256 amount_) external onlyOwner {
         s_projectTokenSupplyToSell -= amount_  * decimals;
         require(
             IPROJECT_TOKEN.transfer(to_, amount_ * decimals),
             "Failed transfering the tokens"
         );
-        emit SupplyReduced(to_, amount_ * decimals);
+        emit SupplyReducedToSell(to_, amount_ * decimals);
+    }
+
+     function reduceSupplyForLP(address to_, uint256 amount_) external onlyOwner {
+        s_ProjectTokenSupplyForLP -= amount_ * decimals;
+        require(
+            IPROJECT_TOKEN.transfer(to_, amount_ * decimals),
+            "Failed transfering the tokens"
+        );
+        emit SupplyReducedForLP(to_, amount_ * decimals);
     }
 
     //~~~~~~~~~~~~~~ User Functions ~~~~~~~~~~~~~~
