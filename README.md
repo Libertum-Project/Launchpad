@@ -13,8 +13,6 @@
         7. Shares = an array with the shares (IN THE SAME ORDER AS Payees)
             example: [34,33,33] (the sum of the shares MUST be equal to 100)
 
-
-
     Notes --> the amount of USDT that will be distributed for the partners, is taken from the difference of the USDT collected and the "USDT*PERCENTAGE_FOR_LP"(variable #1)
 
     example:
