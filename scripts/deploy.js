@@ -2,13 +2,14 @@ const hre = require("hardhat");
 const { BigNumber } = require("ethers");
 
 async function main() {
-  let owner = "0xc85eE321199BaB137F0885F045B0f0Ebd151bD11";
+  let owner = "0xA3286628134baD128faeef82F44e99AA64085C94"; //t2
   let payees = [
-    owner,
-    "0xc85eE321199BaB137F0885F045B0f0Ebd151bD11",
-    "0x5875da5854c2adAdBc1a7a448b5B2A09b26Baff8",
+    owner, //t2
+    "0xc85eE321199BaB137F0885F045B0f0Ebd151bD11", //t1
+    "0x5875da5854c2adAdBc1a7a448b5B2A09b26Baff8", //t3
+    "0xc7203EfeB54846C149F2c79B715a8927F7334e74", //t4
   ];
-  let shares = [50, 25, 25];
+  let shares = [50, 30, 10, 10];
   let decimals = 10 ** 18;
 
   //deploy the tokens
@@ -22,10 +23,10 @@ async function main() {
   console.log(`Project1 deployed to: ${project1token.address}`);
 
   //deploy the Launchpad
-  const Launchpad = await hre.ethers.getContractFactory("Launchpad");
+  const Launchpad = await hre.ethers.getContractFactory("LaunchpadLibertum");
   const launchpad = await Launchpad.deploy(
     50, //percentageForLP
-    usdt.address, //IERC20 mainCurrency
+    usdt.address, //IERC20 USDT
     project1token.address, ///IERC20 projectToken
     20, //projectToken Price in USDT
     2, //minimum Amount to purchase of ProjectToken
