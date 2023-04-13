@@ -1,9 +1,9 @@
 require("@nomicfoundation/hardhat-toolbox");
-require("@nomiclabs/hardhat-ganache");
+require("@nomiclabs/hardhat-etherscan");
 
 require("dotenv").config();
 
-const { PRIVATE_KEY, API_BSC } = process.env;
+const { PRIVATE_KEY, BSC_KEY } = process.env;
 
 module.exports = {
   solidity: "0.8.10",
@@ -15,6 +15,6 @@ module.exports = {
     },
   },
   etherscan: {
-    apiKey: API_BSC,
+    apiKey: BSC_KEY,
   },
 };
