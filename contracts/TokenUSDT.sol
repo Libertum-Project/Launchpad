@@ -8,7 +8,7 @@ contract USDT is ERC20 {
 
 
     constructor() ERC20("USD Dollar Libertum", "USDTL"){
-        mint(1000);
+        mint(200);
     }
 
     function mint(uint amount) public {
