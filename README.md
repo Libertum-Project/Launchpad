@@ -22,6 +22,7 @@
     7. now users can call buyTokens() - users MUST approve() the USDT contract first so the launchpad can take their USDT to buy projectToken
     8. once the projectToken has been sold, (or even before, but not ideal) the Owner of the launchpad(deployer) can call finishRound()
     9. finishRound() will distribute the funds to the partners and call factory & router in pancakeSwap
+    10. after round is closed, users can call claimTokens() and the tokens will be transfered to their wallets
 
     Notes --> the amount of USDT that is distributed among the partners, is taken from the difference of the USDT collected and the USDT for the liquidity pool (percentage)
 
