@@ -1,3 +1,7 @@
+    notes for me:
+    #159 change this one for reduceSupplyToSell()
+    and add reduceSupplyForLP() to reduce the supply for the LP()s
+
 # Launchpad step-by-step
 
     1. deploy USDT (or get the address from the USDT token)
@@ -12,6 +16,12 @@
             example: [libertumAddress, projectOwnerAddress, otherAddress]
         7. Shares = an array with the shares (IN THE SAME ORDER AS Payees)
             example: [34,33,33] (the sum of the shares MUST be equal to 100)
+    4. approve() projectToken from the projectOwner, so the launchpad is able to get the token
+    5. call addSupplyToSell(amount), this is the projecToken amount that will be sold in the launchpad
+    6. call addSupplyForLP(amount), this is the projectToken amount that will be send to the LP pancakeswap
+    7. now users can call buyTokens() - users MUST approve() the USDT contract first so the launchpad can take their USDT to buy projectToken
+    8. once the projectToken has been sold, (or even before, but not ideal) the Owner of the launchpad(deployer) can call finishRound()
+    9. finishRound() will distribute the funds to the partners and call factory & router in pancakeSwap
 
     Notes --> the amount of USDT that is distributed among the partners, is taken from the difference of the USDT collected and the USDT for the liquidity pool (percentage)
 
