@@ -4,13 +4,17 @@ const { BigNumber } = require("ethers");
 async function main() {
   const owner = "0xA3286628134baD128faeef82F44e99AA64085C94"; //t2
   const PAYEES = [
-    owner, //t2
-    "0xc85eE321199BaB137F0885F045B0f0Ebd151bD11", //t1
-    "0x5875da5854c2adAdBc1a7a448b5B2A09b26Baff8", //t3
-    "0xc7203EfeB54846C149F2c79B715a8927F7334e74", //t4
+    "0x16af037878a6cAce2Ea29d39A3757aC2F6F7aac1", //mia - proyecto
+    "0x2F09F2124a141057bfD7D3453EEECa25628A450a", //Luis - libertum
   ];
 
-  const SHARES = [50, 30, 10, 10];
+  const SHARES = [90, 10]; //100%
+
+  //recogimos 30usdt
+  //60% al LP --> 18usdt
+  //sobran 12usdt (santiago y luis)
+  //santiago recibe 10.8
+  //luis recibiria 8usdt 1.2
 
   //deploy the tokens
   const usdt = await (
@@ -23,7 +27,7 @@ async function main() {
   console.log(`Project1 deployed to: ${project1token.address}`);
 
   //variables for the Launchpad constructor
-  const PERCENTAGE_FOR_LP = 50;
+  const PERCENTAGE_FOR_LP = 60;
   const USDT_ADDRESS = usdt.address;
   const PROJECT_TOKEN_ADDRESS = project1token.address;
   const PROJECT_TOKEN_PRICE_IN_USDT = 2;
