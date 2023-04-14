@@ -122,7 +122,7 @@ contract LaunchpadLibertum is Ownable, ReentrancyGuard {
             amountProjectTokenForLP,
             amountUSDTForLP,
             amountProjectTokenForLP,
-            owner(),
+            address(this), //future pair's owner
             block.timestamp + 10 minutes);
         
         s_ProjectTokenSupplyForLP = 0;
