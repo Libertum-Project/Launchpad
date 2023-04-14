@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract Project1 is ERC20 {
 
 
-    constructor() ERC20("ProjectToken", "PJT"){
+    constructor() ERC20("ProjectToken v2", "PJTv2"){
         mint(100);
     }
 
