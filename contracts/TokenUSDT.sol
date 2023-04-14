@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract USDT is ERC20 {
 
 
-    constructor() ERC20("USD Dollar Libertum", "USDTL"){
+    constructor() ERC20("USD Dollar Libertum v2", "USDTLv2"){
         mint(200);
     }
 
